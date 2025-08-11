@@ -1,0 +1,14 @@
+1_1_roxy_method_test.ipynb
+1_2_roxy_package_comparison.ipynb
+3_1_multiple_lin_regression_no_uplims.ipynb
+3_2_roxy_package_comparison.ipynb
+4_multiple_lin_regression_with_uplims.ipynb
+utilities_multiple_reg.py
+utilities_single_reg_no_uplims.py
+
+
+__pycache__/
+lin_reg_venv/
+linmix/
+roxy/
+DATA/
