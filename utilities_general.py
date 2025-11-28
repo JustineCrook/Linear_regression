@@ -138,7 +138,7 @@ def gen_synthetic_data(seed=0, return_alt=False, nx=None):
     # Normalisation in linear space, for powerlaw fit
     alpha = 10**norm_lin # = (Lr0/(Lx0)**beta) * 10**(0.12)
 
-    path = "interpolated_lrlx.txt"
+    path = "./DATA/interpolated_lrlx.txt"
     # read as tab-separated, first line used as header (default header=0)
     df = pd.read_csv(path, sep=',', header=0, encoding='utf-8')
 
