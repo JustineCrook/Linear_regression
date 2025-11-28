@@ -16,92 +16,13 @@ import corner
 from joblib import Parallel, delayed
 from tqdm import tqdm
 import linmix
+import pandas as pd
 
-from utilities_general import dict_samples_to_array
-
-
-
-###############################################################################################################################
-## GENERATE SYNTHETIC DATA
+from utilities_general import dict_samples_to_array, gen_synthetic_data, gen_synthetic_data_old
 
 
-## Synthetic data parameters
-mu_true = -0.1    # Mean of the true x distribution
-w_true = 1.0     # Standard deviation of the true x distribution
-slope_true = 0.6
-offset_true = 0.2
-sig_true = 0.2 # additional scatter in the y direction
-x_err = 0.08 # x error for the data
-y_err = 0.08 # y error for the data
 
 params = ['A', 'B', 'mu_gauss', 'w_gauss', 'sig']
-true_vals = [slope_true, offset_true, mu_true, w_true, sig_true]
-
-
-def gen_synthetic_data(nx=100, nuplims=20, seed=0, plot=True, return_alt=False):
-
-    # Set the seed for generating xtrue, xobs, ytrue, yobs values
-    # Note that I also use the seed for generating xtrue and ytrue because we have a small number of data points, 
-    # and if we don't, it will bias mu_gauss values across all repeats towards xtrue instead of of mu_true, 
-    # and will bias w_gauss across all repeats towards the std of xtrue instead of w_true
-    np.random.seed(seed)
-
-    # Generate xtrue values 
-    # Draw xtrue from a Gaussian with mean mu_true and standard deviation w_true
-    xtrue = np.random.normal(mu_true, w_true, size=nx) 
-
-    # Generate xobs values
-    # As a simple scheme, assume they all have the same error
-    xobs = xtrue + np.random.normal(size=len(xtrue)) * x_err # equivalent to xtrue +  np.random.normal(loc=0.0, scale=x_err, size=len(xtrue))
-    xerr = x_err*np.ones(len(xobs))
-
-    # Generate ytrue values
-    ymean = slope_true*xtrue + offset_true
-    ytrue = ymean + np.random.normal(size=len(xtrue)) * sig_true
-
-    # Generate the yobs values
-    yobs = np.zeros(len(xtrue))
-    # Calculate y
-    yobs = ytrue + np.random.normal(size=len(xtrue)) * y_err
-    yerr = y_err*np.ones(len(yobs))
-
-    # Make mask for the y detections
-    delta = np.ones(len(xobs), dtype=bool)
-    indices = np.random.choice(len(xobs), nuplims, replace=False)
-    delta[indices] = False
-
-    # Replace values for uplims
-    yobs[~delta] = yobs[~delta] + 2*np.random.rand(len(xtrue[~delta])) # add uniform[0,2]
-    
-
-    # Extract values of interest
-    xdet, ydet, xdet_err, ydet_err = xobs[delta], yobs[delta], xerr[delta], yerr[delta]
-    xuplim, yuplim, xuplim_err, yuplim_err = xobs[~delta], yobs[~delta], xerr[~delta], yerr[~delta]
-
-
-    if plot:
-
-        plt.figure()
-        plt.hist(xdet)
-        print(np.mean(xdet))
-        print(np.std(xdet, ddof=1))
-
-        # Plot the generated data
-        plt.figure()
-        plt.errorbar(xdet, ydet, yerr=ydet_err, xerr=xdet_err, fmt=".")
-        plt.errorbar(xuplim, yuplim, yerr=yuplim_err, xerr=xuplim_err, fmt="v")
-        plt.tight_layout()
-        plt.xlabel(r'$x_{\rm obs}$', fontsize=14)
-        plt.ylabel(r'$y_{\rm obs}$', fontsize=14)
-        plt.show()
-
-
-    if return_alt: 
-        delta = delta.astype(int)
-        return xobs, xerr, yobs, yerr, delta
-
-    else: return xdet, ydet, xdet_err, ydet_err, xuplim, yuplim, xuplim_err, yuplim_err 
-
 
 
 
@@ -113,9 +34,11 @@ def gen_synthetic_data(nx=100, nuplims=20, seed=0, plot=True, return_alt=False):
 # i is the seed for generating the data
 # nx is the number of detections
 # nuplims is the number of upper limits
-def run_linear_regression_with_uplims(i, nx, nuplims, plot=False):
+def run_linear_regression_with_uplims(i, nx=100, nuplims=20, plot=False, previous_data_gen = False):
     
-    xdet, ydet, xdet_err, ydet_err, xuplim, yuplim, xuplim_err, yuplim_err = gen_synthetic_data(nx, nuplims, seed=i, plot=False)
+    if previous_data_gen: xdet, ydet, xdet_err, ydet_err, xuplim, yuplim, xuplim_err, yuplim_err, true_vals = gen_synthetic_data_old(nx, nuplims, seed=i, plot=False)
+    else: xdet, ydet, xdet_err, ydet_err, xuplim, yuplim, xuplim_err, yuplim_err, true_vals = gen_synthetic_data(seed=i, nx=nx)
+
 
     # Create the data dictionary
     kwargs = {
@@ -195,6 +118,7 @@ def run_linear_regression_with_uplims(i, nx, nuplims, plot=False):
     
     # Convert to format needed for the corner plot
     samples_subset = {k: samples[k] for k in params} # params is a list of parameter names
+    # samples_arr is a 2D NumPy array of shape (N, D), where N is the total number of samples and D the number of parameters. Each column corresponds to one parameter.
     samples_arr, names = dict_samples_to_array(samples_subset)
 
     # Get the required results
@@ -211,6 +135,9 @@ def run_linear_regression_with_uplims(i, nx, nuplims, plot=False):
         param_means.append(mean)
         param_stds.append(std)
         normalised_results.append((mean-v)/std)
+
+
+    slope_true, offset_true, mu_true, w_true, sig_true = true_vals 
 
 
     if plot:
@@ -262,20 +189,25 @@ def run_linear_regression_with_uplims(i, nx, nuplims, plot=False):
         plt.show()
 
 
+        # Plot a corner plot
+        fig = corner.corner(samples_arr, labels=params, truths=[slope_true, offset_true, mu_true, w_true, sig_true])
+        plt.show()
+
+
 
     return normalised_results, samples_arr
 
 
 
 
-def runner_with_uplims(nrepeats, nx, nuplims, parallel=False, start_i=0):
+def runner_with_uplims(nrepeats, nx=100, nuplims=20, parallel=False, start_i=0,  plot=False, previous_data_gen = False):
      
     plot = ((nrepeats ==1) & (parallel==False))
     print("Show results of each iteration:", plot)
 
     if parallel:
         parallel_results = Parallel(n_jobs=-1)(
-            delayed(run_linear_regression_with_uplims)(start_i + i, nx, nuplims, plot=False)
+            delayed(run_linear_regression_with_uplims)(start_i + i, nx, nuplims, previous_data_gen=previous_data_gen, plot=False )
             for i in tqdm(range(nrepeats))
         )
 
@@ -287,13 +219,13 @@ def runner_with_uplims(nrepeats, nx, nuplims, parallel=False, start_i=0):
         for i in range(nrepeats):
             print(f"RUN #{i}")
 
-            normalised_results, samples_arr = run_linear_regression_with_uplims(start_i + i, nx, nuplims, plot=plot)
+            normalised_results, samples_arr = run_linear_regression_with_uplims(start_i + i, nx, nuplims, previous_data_gen=previous_data_gen, plot=plot)
 
             all_normalised_results.append(normalised_results)
             all_samples_arr.append(samples_arr)
 
 
-    # Standardised results plt
+    # Standardised results plot
     all_normalised_results = np.array(all_normalised_results) # shape: (n_runs, n_params)
     n_params = len(params)
     fig, axes = plt.subplots(1, n_params, figsize=(4 * n_params, 4))
@@ -307,6 +239,11 @@ def runner_with_uplims(nrepeats, nx, nuplims, parallel=False, start_i=0):
     plt.tight_layout()
     plt.show()
 
+
+    if previous_data_gen: _, _, _, _, _, _, _, _, true_vals = gen_synthetic_data_old(nx, nuplims, seed=i, plot=False)
+    else: _, _, _, _, _, _, _, _, true_vals = gen_synthetic_data(seed=i, plot=False)
+    slope_true, offset_true, mu_true, w_true, sig_true = true_vals 
+
     # Corner plot
     # all_samples_arr has shape (n_runs, n_samples, n_params)
     samples_for_corner = np.vstack(all_samples_arr)  # stacks along the first axis, so resultant shape: (n_runs * n_samples, n_params)
@@ -315,21 +252,29 @@ def runner_with_uplims(nrepeats, nx, nuplims, parallel=False, start_i=0):
 
 
 
+
+
+
+
 ###############################################################################################################################
 
 
-def linmix_comparison(i, nx, nuplims, plot=False):
+def linmix_comparison(i, nx=100, nuplims=20, plot=False, previous_data_gen = False):
     """
     Compare the results of the linmix package with the results of this method.
     """
     
-    xobs, xerr, yobs, yerr, delta = gen_synthetic_data(nx, nuplims, seed=i, plot=False, return_alt=True)
+    if previous_data_gen: xobs, xerr, yobs, yerr, delta, true_vals = gen_synthetic_data_old(nx, nuplims, seed=i, return_alt=True)
+    else: xobs, xerr, yobs, yerr, delta, true_vals = gen_synthetic_data(seed=i, nx=nx, return_alt=True)
+
 
     np.random.seed(i)
-    lm = linmix.LinMix(x=xobs, y=yobs, xsig=xerr, ysig=yerr, delta=delta, K=3, parallelize=False, seed=i)
-    lm.run_mcmc(miniter=5000,maxiter=5000,silent=True)
- 
+    lm = linmix.LinMix(x=xobs, y=yobs, xsig=xerr, ysig=yerr, delta=delta, K=2, parallelize=False, seed=i)
+    lm.run_mcmc(miniter=5000,maxiter=10000,silent=False)
 
+
+    print("Number of chains: ", len(lm.chain))
+ 
 
     ## Extract the fitted parameters for each chain 
     alphas = []
