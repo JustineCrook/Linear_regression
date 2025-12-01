@@ -176,9 +176,9 @@ def runner_without_uplims(nrepeats, nx=100, nuplims=0, start_seed=0, previous_da
 
         # Generate the synthetic data, using the seed
         if previous_data_gen:
-            xdet, ydet, xdet_err, ydet_err, xuplim, yuplim, xuplim_err, yuplim_err, true_vals = gen_synthetic_data_old(nx, nuplims, seed=i)
+            xdet, ydet, xdet_err, ydet_err, xuplim, yuplim, xuplim_err, yuplim_err, true_vals = gen_synthetic_data_old(nx, nuplims, seed=start_seed+ i)
         else:
-            xdet, ydet, xdet_err, ydet_err, xuplim, yuplim, xuplim_err, yuplim_err, true_vals = gen_synthetic_data(seed=i, nx=nx)
+            xdet, ydet, xdet_err, ydet_err, xuplim, yuplim, xuplim_err, yuplim_err, true_vals = gen_synthetic_data(seed=start_seed+ i, nx=nx)
         slope_true, offset_true, mu_true, w_true, sig_true = true_vals 
 
 

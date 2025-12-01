@@ -37,7 +37,7 @@ params = ['A', 'B', 'mu_gauss', 'w_gauss', 'sig']
 def run_linear_regression_with_uplims(i, nx=100, nuplims=20, plot=False, previous_data_gen = False):
     
     if previous_data_gen: xdet, ydet, xdet_err, ydet_err, xuplim, yuplim, xuplim_err, yuplim_err, true_vals = gen_synthetic_data_old(nx, nuplims, seed=i, plot=False)
-    else: xdet, ydet, xdet_err, ydet_err, xuplim, yuplim, xuplim_err, yuplim_err, true_vals = gen_synthetic_data(seed=i, nx=nx)
+    else: xdet, ydet, xdet_err, ydet_err, xuplim, yuplim, xuplim_err, yuplim_err, true_vals = gen_synthetic_data(seed=i, nx=nx, plot=False)
 
 
     # Create the data dictionary

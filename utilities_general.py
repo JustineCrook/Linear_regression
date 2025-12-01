@@ -118,7 +118,7 @@ def gen_synthetic_data_old(nx=100, nuplims=20, seed=0, plot=True, return_alt=Fal
 ################
 
 
-def gen_synthetic_data(seed=0, return_alt=False, nx=None):
+def gen_synthetic_data(seed=0, return_alt=False, nx=None, plot=True):
 
     # Set the seed for generating xtrue, xobs, ytrue, yobs values
     # Note that I also use the seed for generating xtrue and ytrue because we have a small number of data points, 
@@ -155,8 +155,6 @@ def gen_synthetic_data(seed=0, return_alt=False, nx=None):
     Lr_unc_u = np.copy(Lr_unc_l)
     Lr_unc_u[Lr_uplims] = 0
     Lx_uplims = filtered_df['Lx_uplim_bool'].astype(bool)
-
-    print("Number of uplims: ", sum(Lr_uplims))
 
 
     x_plot = np.logspace(np.log10(min(Lx)), np.log10(max(Lx)), 1000)
@@ -202,26 +200,29 @@ def gen_synthetic_data(seed=0, return_alt=False, nx=None):
         yobs_lin_orig = yobs_lin_orig[indx]
         
 
-    print("Number of uplims: ", sum(uplims_obs))
-
-    plt.errorbar(xobs, yobs, xerr=xerr, yerr=yerr, uplims = uplims_obs, fmt='o', label='Observed Data', color='blue')
-    plt.errorbar(xobs, np.log10(yobs_lin_orig), uplims = uplims_obs, fmt='o', label='Observed Data', color='green', ms=3)
-    x_plot_lin = np.log10(x_plot)
-    y_fit = np.log10(alpha) + beta * x_plot_lin
-    plt.plot( x_plot_lin  , y_fit, color='red' )
-    plt.legend()
-    plt.show()
-
-
-    plt.hist(xtrue)
-    plt.show()
-
-
     mu_true = np.mean(xtrue)
     w_true = np.std(xtrue, ddof=1)
-    print("True mu:", mu_true)
-    print("True w:", w_true)
-    print("True line: y = {:.4f}x + {:.4f}, sigma = {:.4f}".format(beta, norm_lin, sigma_eps_log))
+
+    if plot:
+        print("Number of uplims: ", sum(uplims_obs))
+
+
+        plt.errorbar(xobs, yobs, xerr=xerr, yerr=yerr, uplims = uplims_obs, fmt='o', label='Observed Data', color='blue')
+        plt.errorbar(xobs, np.log10(yobs_lin_orig), uplims = uplims_obs, fmt='o', label='Observed Data', color='green', ms=3)
+        x_plot_lin = np.log10(x_plot)
+        y_fit = np.log10(alpha) + beta * x_plot_lin
+        plt.plot( x_plot_lin  , y_fit, color='red' )
+        plt.legend()
+        plt.show()
+
+
+        plt.hist(xtrue)
+        plt.show()
+
+
+        print("True mu:", mu_true)
+        print("True w:", w_true)
+        print("True line: y = {:.4f}x + {:.4f}, sigma = {:.4f}".format(beta, norm_lin, sigma_eps_log))
 
 
     true_vals = [beta, norm_lin, mu_true, w_true, sigma_eps_log] # [slope_true, offset_true, mu_true, w_true, sig_true]
