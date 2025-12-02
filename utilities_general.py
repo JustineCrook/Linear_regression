@@ -125,14 +125,13 @@ def gen_synthetic_data(seed=0, return_alt=False, nx=None, plot=True):
     # and if we don't, it will bias mu_gauss values across all repeats towards xtrue instead of of mu_true, 
     # and will bias w_gauss across all repeats towards the std of xtrue instead of w_true
     np.random.seed(seed)
-
     rng = np.random.default_rng(seed)
 
 
     beta = 0.612
     Lx0 = 5.21e35
     Lr0 = 5.14e28
-    norm_lin = 0.12 + np.log10(Lr0) - beta*np.log10(Lx0) # in log space, for linear fit
+    norm_lin = 0.12 # in log space, for linear fit
     sigma_eps_log = 0.5 # in log space, for linear fit
 
     # Normalisation in linear space, for powerlaw fit
@@ -157,35 +156,39 @@ def gen_synthetic_data(seed=0, return_alt=False, nx=None, plot=True):
     Lx_uplims = filtered_df['Lx_uplim_bool'].astype(bool)
 
 
-    x_plot = np.logspace(np.log10(min(Lx)), np.log10(max(Lx)), 1000)
+    x_plot = np.logspace(np.log10(min(Lx/Lx0)), np.log10(max(Lx/Lx0)), 1000)
     x_plot_lin = np.log10(x_plot)
 
 
     ## MAKE SAMPLE DATA 
 
     # Generate sample data in log space directly
-    xtrue = np.log10(Lx)
-    xerr = np.maximum ( np.log10(Lx + Lx_unc_u) - np.log10(Lx), np.log10(Lx) - np.log10(Lx - Lx_unc_l) )
+
+    # Generate xtrue values 
+    xtrue = np.log10(Lx/Lx0)
+    mu_true = np.mean(xtrue)
+    w_true = np.std(xtrue, ddof=1)
+    xerr = np.random.uniform(0.1/np.log(10), 0.5/np.log(10), size=xtrue.shape)  
+    # Draw xtrue from a Gaussian with mean mu_true and standard deviation w_true
+    xtrue = np.random.normal(mu_true, w_true, size=len(xtrue)) 
     xobs = xtrue + np.random.normal(size=len(xtrue)) * xerr
 
+    # Generate ytrue
     # Log space, i.e. for the linear fit
     ymean = norm_lin + beta * xtrue 
     ytrue = ymean + np.random.normal(size=len(ymean))* sigma_eps_log
+    yerr = np.random.uniform(0.05/np.log(10), 0.4/np.log(10), size=xtrue.shape)  
+    yobs = ytrue + np.random.normal(size=len(xtrue)) * yerr
 
-    # Linear space -- just easier in terms of understanding the <3sigma rule
-    ytrue_lin = 10**ytrue
-    yerr_lin = np.random.uniform(0.05*ytrue_lin, 0.4*ytrue_lin, size=ytrue_lin.shape) 
-    yobs_lin = ytrue_lin + np.random.normal(size=len(ytrue_lin)) * yerr_lin
-
-    yobs_lin_orig = np.copy(yobs_lin)
+    yobs_orig = np.copy(yobs)
 
     # Upper limits
+    # Do this in linear space -- just easier / more intuitive in terms of understanding the <3sigma rule
+    ytrue_lin = 10**ytrue
+    yobs_lin = 10**yobs
+    yerr_lin = ytrue_lin * np.log(10)* yerr  # convert to linear space, just using small error approximation
     uplims_obs = (yobs_lin< (3*yerr_lin))
-    yobs_lin[uplims_obs] = 3*yerr_lin[uplims_obs]
-
-    # Convert back to log space
-    yerr = np.maximum ( np.log10(ytrue_lin + yerr_lin) - np.log10(ytrue_lin), np.log10(ytrue_lin) - np.log10(ytrue_lin - yerr_lin) )
-    yobs = np.log10(yobs_lin)
+    yobs[uplims_obs] = np.log10(3*yerr_lin[uplims_obs]) # set the observed value to the 3*yerr in log space 
 
 
     if nx is not None:
@@ -197,18 +200,15 @@ def gen_synthetic_data(seed=0, return_alt=False, nx=None, plot=True):
         yobs = yobs[indx]
         yerr = yerr[indx]
         uplims_obs = uplims_obs[indx]
-        yobs_lin_orig = yobs_lin_orig[indx]
+        yobs_orig = yobs_orig[indx]
         
-
-    mu_true = np.mean(xtrue)
-    w_true = np.std(xtrue, ddof=1)
 
     if plot:
         print("Number of uplims: ", sum(uplims_obs))
 
 
         plt.errorbar(xobs, yobs, xerr=xerr, yerr=yerr, uplims = uplims_obs, fmt='o', label='Observed Data', color='blue')
-        plt.errorbar(xobs, np.log10(yobs_lin_orig), uplims = uplims_obs, fmt='o', label='Observed Data', color='green', ms=3)
+        plt.errorbar(xobs, yobs_orig, uplims = uplims_obs, fmt='o', label='Observed Data', color='green', ms=3)
         x_plot_lin = np.log10(x_plot)
         y_fit = np.log10(alpha) + beta * x_plot_lin
         plt.plot( x_plot_lin  , y_fit, color='red' )
