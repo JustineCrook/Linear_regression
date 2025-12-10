@@ -84,16 +84,22 @@ def run_linear_regression_without_uplims(x, y, xerr, yerr, true_vals=None, show_
 
 
     param_means = []
+    param_medians = []
     param_stds = []
     results = []
     for i, (p, v) in enumerate(zip(params, true_vals)):
         vals = samples[p]# for all chains together
         mean = np.mean(vals)
+        median = np.median(vals)
         std = np.std(vals, ddof=1)
+        param_medians.append(median)
         param_means.append(mean)
         param_stds.append(std)
         if v is not None: results.append((mean-v)/std)
   
+
+
+    
 
 
     if show_plots:
@@ -104,11 +110,18 @@ def run_linear_regression_without_uplims(x, y, xerr, yerr, true_vals=None, show_
         #plt.savefig("corner.png")
 
         # Print results
-        A_mean = np.mean(param_means[0])
-        B_mean = np.mean(param_means[1])
-        scatter_mean = np.mean(param_means[4])
+        A_mean = param_means[0]
+        B_mean = param_means[1]
+        scatter_mean = param_means[4]
         print(f"Estimated line: y = {A_mean:.4f}x + {B_mean:.4f}")
         print(f"Estimated scatter (sigma): {scatter_mean:.4f}")
+
+        print()
+        A_median = param_medians[0]
+        B_median = param_medians[1]
+        scatter_median = param_medians[4]
+        print(f"Estimated line: y = {A_median:.4f}x + {B_median:.4f}")
+        print(f"Estimated scatter (sigma): {scatter_median:.4f}")
 
         if true_vals != [None]*5:
             slope_true, offset_true, mu_true, w_true, sig_true = true_vals
@@ -121,7 +134,7 @@ def run_linear_regression_without_uplims(x, y, xerr, yerr, true_vals=None, show_
         plt.errorbar(x, y, yerr=yerr, xerr=xerr, fmt=".")
         x_plot = np.linspace(xmin-1, xmax +1, 100)
         y_plot = A_mean * x_plot + B_mean
-        plt.plot(x_plot, y_plot, 'r-', label=f'Fitted: y = {A_mean:.4f}x + {B_mean:.4f}')
+        plt.plot(x_plot, y_plot, 'r-', label=f'Fitted: y = {A_median:.4f}x + {B_median:.4f}')
         plt.legend()
         plt.show()
 
