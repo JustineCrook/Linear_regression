@@ -101,7 +101,7 @@ def run_linear_regression_without_uplims(x, y, xerr, yerr, true_vals=None, show_
         # Plot corner plot
         fig = corner.corner(samples_arr, labels=names, truths=true_vals)
         plt.show()
-        plt.savefig("corner.png")
+        #plt.savefig("corner.png")
 
         # Print results
         A_mean = np.mean(param_means[0])
