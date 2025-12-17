@@ -35,13 +35,17 @@ params_linmix = ["beta" , "alpha", "sig"]
 # i is the seed for generating the data
 # nx is the number of detections
 # nuplims is the number of upper limits
-def run_linear_regression_with_uplims(i, nx=100, nuplims=20, plot=False, previous_data_gen = False, no_uplims=False):
+def run_linear_regression_with_uplims(i, nx=100, nuplims=20, plot=False, type_data = "new", no_uplims=False):
     
-    if previous_data_gen: 
+    if type_data == "old": 
         if nx is None: nx=100
         xdet, ydet, xdet_err, ydet_err, xuplim, yuplim, xuplim_err, yuplim_err, true_vals = gen_synthetic_data_old(nx, nuplims, seed=i, plot=False)
-    else: xdet, ydet, xdet_err, ydet_err, xuplim, yuplim, xuplim_err, yuplim_err, true_vals = gen_synthetic_data(seed=i, nx=nx, plot=False, no_uplims=no_uplims)
-
+    elif type_data == "new": 
+        xdet, ydet, xdet_err, ydet_err, xuplim, yuplim, xuplim_err, yuplim_err, true_vals = gen_synthetic_data(seed=i, nx=nx, plot=False, no_uplims=no_uplims)
+    elif type_data == "change_line":
+        xdet, ydet, xdet_err, ydet_err, xuplim, yuplim, xuplim_err, yuplim_err , true_vals = gen_synthetic_data_change_line(seed=i, nx=nx, plot=False, no_uplims=no_uplims)
+    else:
+        raise ValueError("type_data must be 'old', 'new' or 'change_line'")
 
     # Create the data dictionary
     kwargs = {
@@ -64,7 +68,7 @@ def run_linear_regression_with_uplims(i, nx=100, nuplims=20, plot=False, previou
     def model(xdet, ydet, xdet_err, ydet_err, xuplim, yuplim, xuplim_err, yuplim_err):
 
         # Priors
-        B = numpyro.sample("B", dist.Uniform(-20, 20)) # intercept
+        B = numpyro.sample("B", dist.Uniform(-5, 5)) # intercept
         A = numpyro.sample("A", dist.Uniform(-5,5)) # slope
         scatter = numpyro.sample("sig", dist.Uniform(0, 5))
         mu_gauss = numpyro.sample("mu_gauss", dist.Uniform(min_x, max_x))
@@ -212,13 +216,17 @@ def run_linear_regression_with_uplims(i, nx=100, nuplims=20, plot=False, previou
 
 ## SAME FUNCTIONALITY AS ABOVE, BUT MARGANILISED OVER XT
 
-def run_linear_regression_marginalised_xt(i, nx=None, nuplims=20, plot=False, previous_data_gen = False, no_uplims=False):
+def run_linear_regression_marginalised_xt(i, nx=None, nuplims=20, plot=False, type_data= "new", no_uplims=False):
     
-    if previous_data_gen: 
+    if type_data == "old": 
         if nx is None: nx=100
         xdet, ydet, xdet_err, ydet_err, xuplim, yuplim, xuplim_err, yuplim_err, true_vals = gen_synthetic_data_old(nx, nuplims, seed=i, plot=False)
-    else: xdet, ydet, xdet_err, ydet_err, xuplim, yuplim, xuplim_err, yuplim_err, true_vals = gen_synthetic_data(seed=i, nx=nx, plot=False, no_uplims=no_uplims)
-
+    elif type_data == "new": 
+        xdet, ydet, xdet_err, ydet_err, xuplim, yuplim, xuplim_err, yuplim_err, true_vals = gen_synthetic_data(seed=i, nx=nx, plot=False, no_uplims=no_uplims)
+    elif type_data == "change_line":
+        xdet, ydet, xdet_err, ydet_err, xuplim, yuplim, xuplim_err, yuplim_err , true_vals = gen_synthetic_data_change_line(seed=i, nx=nx,  plot=False, no_uplims=no_uplims)
+    else:
+        raise ValueError("type_data must be 'old', 'new' or 'change_line'")
 
     # Create the data dictionary
     kwargs = {
@@ -387,9 +395,9 @@ def run_linear_regression_marginalised_xt(i, nx=None, nuplims=20, plot=False, pr
 ## RUNNER FUNCTION
 
 
-def runner_with_uplims(nrepeats, nx=100, nuplims=20, parallel=False, start_i=0,  plot=False, previous_data_gen = False, type_test="marg", no_uplims=False):
+def runner_with_uplims(nrepeats, nx=100, nuplims=20, parallel=False, start_i=0,  plot=False, type_data="new", type_test="marg", no_uplims=False):
      
-    plot = ((nrepeats ==1) & (parallel==False))
+    #plot = ((nrepeats ==1) & (parallel==False))
     print("Show results of each iteration:", plot)
 
     if type_test == "marg": 
@@ -403,9 +411,12 @@ def runner_with_uplims(nrepeats, nx=100, nuplims=20, parallel=False, start_i=0, 
         params_ = params_linmix
     else: raise ValueError("type_test must be 'marg', 'no_marg' or 'linmix'")
 
+
+    if type_data not in ["old", "new", "change_line"]: raise ValueError("type_data must be 'old', 'new' or 'change_line'")
+
     if parallel:
         parallel_results = Parallel(n_jobs=-1)(
-            delayed(func)(start_i + i, nx, nuplims, previous_data_gen=previous_data_gen, plot=False,  no_uplims=no_uplims )
+            delayed(func)(start_i + i, nx, nuplims, type_data=type_data, plot=False,  no_uplims=no_uplims )
             for i in tqdm(range(nrepeats))
         )
 
@@ -417,31 +428,33 @@ def runner_with_uplims(nrepeats, nx=100, nuplims=20, parallel=False, start_i=0, 
         for i in range(nrepeats):
             print(f"RUN #{i}")
 
-            normalised_results, samples_arr = func(start_i + i, nx, nuplims, previous_data_gen=previous_data_gen, plot=plot,  no_uplims=no_uplims )
+            normalised_results, samples_arr = func(start_i + i, nx, nuplims, type_data=type_data, plot=plot,  no_uplims=no_uplims )
 
             all_normalised_results.append(normalised_results)
             all_samples_arr.append(samples_arr)
 
 
 
-    if previous_data_gen: _, _, _, _, _, _, _, _, true_vals = gen_synthetic_data_old(nx, nuplims, seed=0, plot=False)
-    else: _, _, _, _, _, _, _, _, true_vals = gen_synthetic_data(seed=0, nx=nx, plot=False)
+    if type_data == "old": 
+        _, _, _, _, _, _, _, _, true_vals = gen_synthetic_data_old(nx, nuplims, seed=0, plot=False)
+        truth = np.array([list(true_vals)]*n_runs)
+    elif type_data == "new": 
+        _, _, _, _, _, _, _, _, true_vals = gen_synthetic_data(seed=0, nx=nx, plot=False)
+        truth = np.array([list(true_vals)]*n_runs)
+    elif type_data == "change_line": 
+        truth = []
+        for i in range(nrepeats):
+            _, _, _, _, _, _, _, _, true_vals = gen_synthetic_data_change_line(seed=start_i+i, nx=nx, plot=False)
+            truth.append(list(true_vals))
+        truth = np.array(truth)
+        print(truth)
     
-    slope_true, offset_true, mu_true, w_true, sig_true = true_vals 
-
-
-    if type_test == "linmix":
-        truths = [slope_true, offset_true, sig_true]
-        true_vals = [slope_true, offset_true, sig_true]
-    else:
-        truths = [slope_true, offset_true, mu_true, w_true, sig_true]
-
+    
 
     # Check plots
     all_samples_arr = np.asarray(all_samples_arr)
     n_runs, n_samples, n_params = all_samples_arr.shape
     print("n_runs:", n_runs, "n_samples:", n_samples, "n_params:", n_params)
-    truth = np.array([list(true_vals)]*n_runs)
     plot_posterior_diagnostics(all_samples_arr, truth)
 
 
@@ -461,10 +474,20 @@ def runner_with_uplims(nrepeats, nx=100, nuplims=20, parallel=False, start_i=0, 
 
 
     # Corner plot
-    # all_samples_arr has shape (n_runs, n_samples, n_params)
-    samples_for_corner = np.vstack(all_samples_arr)  # stacks along the first axis, so resultant shape: (n_runs * n_samples, n_params)
-    fig = corner.corner(samples_for_corner, labels=params_, truths=truths)
-    plt.show()
+    if type_data != "change_line": # true values are the same for all runs
+
+        slope_true, offset_true, mu_true, w_true, sig_true = true_vals 
+
+        if type_test == "linmix":
+            truths = [slope_true, offset_true, sig_true]
+        else:
+            truths = [slope_true, offset_true, mu_true, w_true, sig_true]
+
+    
+        # all_samples_arr has shape (n_runs, n_samples, n_params)
+        samples_for_corner = np.vstack(all_samples_arr)  # stacks along the first axis, so resultant shape: (n_runs * n_samples, n_params)
+        fig = corner.corner(samples_for_corner, labels=params_, truths=truths)
+        plt.show()
 
 
 

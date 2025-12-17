@@ -207,11 +207,11 @@ def gen_synthetic_data(seed=0, return_alt=False, nx=None, plot=True, no_uplims=F
     beta = 0.612
     Lx0 = 5.21e35
     Lr0 = 5.14e28
-    norm_lin = 0.12 # in log space, for linear fit
+    norm_log = 0.12 # in log space, for linear fit
     sigma_eps_log = 0.5 # in log space, for linear fit
 
     # Normalisation in linear space, for powerlaw fit
-    alpha = 10**norm_lin # = (Lr0/(Lx0)**beta) * 10**(0.12)
+    alpha = 10**norm_log # = (Lr0/(Lx0)**beta) * 10**(0.12)
 
     path = "./DATA/interpolated_lrlx.txt"
     # read as tab-separated, first line used as header (default header=0)
@@ -241,18 +241,18 @@ def gen_synthetic_data(seed=0, return_alt=False, nx=None, plot=True, no_uplims=F
     # Generate sample data in log space directly
 
     # Generate xtrue values 
-    xtrue = np.log10(Lx/Lx0)
-    print("Number of data points: ", len(xtrue))
-    mu_true = np.mean(xtrue)
-    w_true = np.std(xtrue, ddof=1)
-    xerr = np.random.uniform(0.1/np.log(10), 0.5/np.log(10), size=xtrue.shape)  # errors in log space are 1/log(10) * dx_lin/x_lin, so this corresponds to ~10-50% errors in linear space
+    xtrue_ref = np.log10(Lx/Lx0)
+    print("Number of data points: ", len(xtrue_ref))
+    mu_true = np.mean(xtrue_ref)
+    w_true = np.std(xtrue_ref, ddof=1)
+    xerr = np.random.uniform(0.1/np.log(10), 0.5/np.log(10), size=xtrue_ref.shape)  # errors in log space are 1/log(10) * dx_lin/x_lin, so this corresponds to ~10-50% errors in linear space
     # Draw xtrue from a Gaussian with mean mu_true and standard deviation w_true
-    xtrue = np.random.normal(mu_true, w_true, size=len(xtrue)) 
+    xtrue = np.random.normal(mu_true, w_true, size=len(xtrue_ref)) 
     xobs = xtrue + np.random.normal(size=len(xtrue)) * xerr
 
     # Generate ytrue
     # Log space, i.e. for the linear fit
-    ymean = norm_lin + beta * xtrue 
+    ymean = norm_log + beta * xtrue 
     ytrue = ymean + np.random.normal(size=len(ymean))* sigma_eps_log
     yerr = np.random.uniform(0.05/np.log(10), 0.4/np.log(10), size=xtrue.shape)   # errors in log space are 1/log(10) * dx_lin/x_lin, so this corresponds to ~5-40% errors in linear space
     yobs = ytrue + np.random.normal(size=len(xtrue)) * yerr
@@ -289,9 +289,10 @@ def gen_synthetic_data(seed=0, return_alt=False, nx=None, plot=True, no_uplims=F
         yobs_orig = yobs_orig[indx]
         
 
-    print("Number of data points: ", len(xtrue))
+    
 
     if plot:
+        print("Number of data points: ", len(xtrue))
         print("Number of uplims: ", sum(uplims_obs))
 
 
@@ -330,10 +331,10 @@ def gen_synthetic_data(seed=0, return_alt=False, nx=None, plot=True, no_uplims=F
 
         print("True mu:", mu_true)
         print("True w:", w_true)
-        print("True line: y = {:.4f}x + {:.4f}, sigma = {:.4f}".format(beta, norm_lin, sigma_eps_log))
+        print("True line: y = {:.4f}x + {:.4f}, sigma = {:.4f}".format(beta, norm_log, sigma_eps_log))
 
 
-    true_vals = [beta, norm_lin, mu_true, w_true, sigma_eps_log] # [slope_true, offset_true, mu_true, w_true, sig_true]
+    true_vals = [beta, norm_log, mu_true, w_true, sigma_eps_log] # [slope_true, offset_true, mu_true, w_true, sig_true]
 
     delta = np.ones(len(xobs), dtype=bool)  # 1 for detection, 0 for upper limit
     delta[uplims_obs] = False
@@ -353,6 +354,198 @@ def gen_synthetic_data(seed=0, return_alt=False, nx=None, plot=True, no_uplims=F
         return xobs, xerr, yobs, yerr , delta, true_vals
 
     else: return xdet, ydet, xdet_err, ydet_err, xuplim, yuplim, xuplim_err, yuplim_err , true_vals
+
+
+
+
+
+
+################
+
+
+def gen_synthetic_data_change_line(seed=0, return_alt=False, nx=None, plot=True, no_uplims=False):
+
+    # Set the seed for generating xtrue, xobs, ytrue, yobs values
+    # Note that I also use the seed for generating xtrue and ytrue because we have a small number of data points, 
+    # and if we don't, it will bias mu_gauss values across all repeats towards xtrue instead of of mu_true, 
+    # and will bias w_gauss across all repeats towards the std of xtrue instead of w_true
+    np.random.seed(seed)
+    rng = np.random.default_rng(seed)
+
+
+    Lx0 = 5.21e35
+    Lr0 = 5.14e28
+
+
+    path = "./DATA/interpolated_lrlx.txt"
+    # read as tab-separated, first line used as header (default header=0)
+    df = pd.read_csv(path, sep=',', header=0, encoding='utf-8')
+
+
+    mask = (df['class'].isin(["BH", "candidateBH"]) & (df['state'].isin(["HS", "QS"]))  & (df["Lx_uplim_bool"]==0) )
+    filtered_df = df[mask] 
+
+    Lx = filtered_df['Lx'].to_numpy()
+    Lx_unc_l = filtered_df['Lx_unc_l'].to_numpy()
+    Lx_unc_u = filtered_df['Lx_unc_u'].to_numpy()
+    Lr = filtered_df['Lr'].to_numpy()
+    Lr_unc_l = filtered_df['Lr_unc'].to_numpy()     
+    Lr_uplims = filtered_df['Lr_uplim_bool'].astype(bool)
+    Lr_unc_u = np.copy(Lr_unc_l)
+    Lr_unc_u[Lr_uplims] = 0
+    Lx_uplims = filtered_df['Lx_uplim_bool'].astype(bool)
+
+
+    
+
+
+
+    ## LINE PARAMETERS
+
+    beta = np.random.uniform(-2, 2) # slope
+    norm_log = np.random.uniform(-2, 2) # intercept in log space
+    sigma_eps_log = np.random.uniform(0.01, 2) # scatter in log space
+
+    min_x = np.min(np.log10(Lx/Lx0))
+    max_x = np.max(np.log10(Lx/Lx0))
+    mu_true = np.random.uniform(1.1*min_x, 0.9*max_x) # mean of x distribution
+    w_true = np.random.uniform(0, 0.9*(max_x - min_x)) # std of x distribution
+
+
+    if plot:
+        print("Generated line parameters:")
+        print("beta (slope):", beta)
+        print("norm_log (intercept):", norm_log)
+        print("sigma_eps_log (scatter):", sigma_eps_log)
+        print("mu_true (mean of x distribution):", mu_true)
+        print("w_true (std of x distribution):", w_true)
+
+
+    # Normalisation in linear space, for powerlaw fit
+    alpha = 10**norm_log # = (Lr0/(Lx0)**beta) * 10**(0.12)
+
+
+
+    ## MAKE SAMPLE DATA 
+
+    # Generate sample data in log space directly
+
+    # Generate xtrue values 
+    xerr = np.random.uniform(0.1/np.log(10), 0.5/np.log(10), size=Lx.shape)  # errors in log space are 1/log(10) * dx_lin/x_lin, so this corresponds to ~10-50% errors in linear space
+    # Draw xtrue from a Gaussian with mean mu_true and standard deviation w_true
+    xtrue = np.random.normal(mu_true, w_true, size=len(Lx)) 
+    xobs = xtrue + np.random.normal(size=len(Lx)) * xerr
+
+    # Generate ytrue
+    # Log space, i.e. for the linear fit
+    ymean = norm_log + beta * xtrue 
+    ytrue = ymean + np.random.normal(size=len(ymean))* sigma_eps_log
+    yerr = np.random.uniform(0.05/np.log(10), 0.4/np.log(10), size=xtrue.shape)   # errors in log space are 1/log(10) * dx_lin/x_lin, so this corresponds to ~5-40% errors in linear space
+    yobs = ytrue + np.random.normal(size=len(xtrue)) * yerr
+
+    yobs_orig = np.copy(yobs)
+
+    if no_uplims==False:
+        # Upper limits
+        # Do this in linear space -- just easier / more intuitive in terms of understanding the <3sigma rule
+        ytrue_lin = 10**ytrue
+        yobs_lin = 10**yobs
+        yerr_lin = ytrue_lin * np.log(10)* yerr  # convert to linear space, just using small-ish error approximation... should be between 5-40%
+        if plot:
+            # Check 
+            test = yerr_lin / ytrue_lin  *100   # should be between 5-40%
+            plt.hist(test, bins=10)
+            plt.xlabel("y-value % errors in linear space")
+            plt.show()
+        # Apply 3 sigma rule for upper limits
+        uplims_obs = (yobs_lin< (3*yerr_lin)) # mask
+        yobs[uplims_obs] = np.log10(3*yerr_lin[uplims_obs]) # set the observed value to the 3*yerr in log space 
+    else: 
+        uplims_obs = np.zeros(len(yobs), dtype=bool)
+
+    if nx is not None:
+        indx = rng.choice(len(xobs), size=nx, replace=False)
+        xtrue = xtrue[indx]
+        xobs = xobs[indx]
+        xerr = xerr[indx]
+        ytrue = ytrue[indx]
+        yobs = yobs[indx]
+        yerr = yerr[indx]
+        uplims_obs = uplims_obs[indx]
+        yobs_orig = yobs_orig[indx]
+        
+
+
+
+    x_plot = np.logspace(min(xobs), max(xobs), 1000)
+    x_plot_lin = np.log10(x_plot)
+
+    if plot:
+        print("Number of data points: ", len(xtrue))
+        print("Number of uplims: ", sum(uplims_obs))
+
+
+        plt.errorbar(xobs, yobs, xerr=xerr, yerr=yerr, uplims = uplims_obs, fmt='o', label='Observed Data', color='blue')
+        plt.errorbar(xobs, yobs_orig, uplims = uplims_obs, fmt='o', label='Observed Data', color='green', ms=3)
+        x_plot_lin = np.log10(x_plot)
+        y_fit = np.log10(alpha) + beta * x_plot_lin
+        plt.plot( x_plot_lin  , y_fit, color='red' , label='True line')
+        plt.xlabel(r'$\log(L_X / L_{X0})$', fontsize=14)
+        plt.ylabel(r'$\log(L_R / L_{R0})$', fontsize=14)
+        plt.legend()
+        plt.show()
+
+
+        plt.errorbar(xobs[~uplims_obs], yobs[~uplims_obs], xerr=xerr[~uplims_obs], yerr=yerr[~uplims_obs], fmt='o', label='Observed Data', color='blue')
+        plt.errorbar(xobs[uplims_obs], yobs[uplims_obs], xerr=xerr[uplims_obs], yerr=yerr[uplims_obs], uplims= np.ones(sum(uplims_obs), dtype= bool), fmt='o', label='Upper Limits', color='orange')
+        plt.errorbar(xobs, yobs_orig, uplims = uplims_obs, fmt='o', label='True Observed Data', color='green', ms=2)
+        x_plot_lin = np.log10(x_plot)
+        y_fit = np.log10(alpha) + beta * x_plot_lin
+        plt.plot( x_plot_lin  , y_fit, color='red' , label='True line')
+        plt.xlabel(r'$\log(L_X / L_{X0})$', fontsize=14)
+        plt.ylabel(r'$\log(L_R / L_{R0})$', fontsize=14)
+        plt.legend()
+        plt.show()
+
+        plt.hist(ytrue[~uplims_obs], alpha=0.5, label='ytrue detections', color='blue', density=True)
+        plt.hist(ytrue[uplims_obs], alpha=0.5, label='ytrue uplims', color='orange', density=True)
+        plt.xlabel("ytrue values")
+        plt.legend()    
+        plt.show()
+
+        plt.hist(xtrue)
+        plt.xlabel("xtrue values")
+        plt.show()
+
+
+        print("True mu:", mu_true)
+        print("True w:", w_true)
+        print("True line: y = {:.4f}x + {:.4f}, sigma = {:.4f}".format(beta, norm_log, sigma_eps_log))
+
+
+    true_vals = [beta, norm_log, mu_true, w_true, sigma_eps_log] # [slope_true, offset_true, mu_true, w_true, sig_true]
+
+    delta = np.ones(len(xobs), dtype=bool)  # 1 for detection, 0 for upper limit
+    delta[uplims_obs] = False
+
+
+    xdet = xobs[delta]  
+    ydet = yobs[delta]
+    xdet_err = xerr[delta]
+    ydet_err = yerr[delta]
+    xuplim = xobs[~delta]
+    yuplim = yobs[~delta]
+    xuplim_err = xerr[~delta]
+    yuplim_err = yerr[~delta]
+
+    if return_alt: 
+        delta = delta.astype(int)
+        return xobs, xerr, yobs, yerr , delta, true_vals
+
+    else: return xdet, ydet, xdet_err, ydet_err, xuplim, yuplim, xuplim_err, yuplim_err , true_vals
+
+
+
 
 
 
