@@ -23,6 +23,7 @@ from utilities_general import *
 
 
 params = ['A', 'B', 'mu_gauss', 'w_gauss', 'sig']
+params_linmix = ["beta" , "alpha", "sig"]
 
 
 
@@ -34,53 +35,25 @@ params = ['A', 'B', 'mu_gauss', 'w_gauss', 'sig']
 # i is the seed for generating the data
 # nx is the number of detections
 # nuplims is the number of upper limits
-def run_linear_regression_with_uplims(i, nx=100, nuplims=20, plot=False, previous_data_gen = False, ignore_uplims=False, uplims_as_det=False):
+def run_linear_regression_with_uplims(i, nx=100, nuplims=20, plot=False, previous_data_gen = False, no_uplims=False):
     
-    if previous_data_gen: xdet, ydet, xdet_err, ydet_err, xuplim, yuplim, xuplim_err, yuplim_err, true_vals = gen_synthetic_data_old(nx, nuplims, seed=i, plot=False)
-    else: xdet, ydet, xdet_err, ydet_err, xuplim, yuplim, xuplim_err, yuplim_err, true_vals = gen_synthetic_data(seed=i, nx=nx, plot=False)
+    if previous_data_gen: 
+        if nx is None: nx=100
+        xdet, ydet, xdet_err, ydet_err, xuplim, yuplim, xuplim_err, yuplim_err, true_vals = gen_synthetic_data_old(nx, nuplims, seed=i, plot=False)
+    else: xdet, ydet, xdet_err, ydet_err, xuplim, yuplim, xuplim_err, yuplim_err, true_vals = gen_synthetic_data(seed=i, nx=nx, plot=False, no_uplims=no_uplims)
 
 
-    if ignore_uplims:
-        # Create the data dictionary
-        kwargs = {
-            'xdet': np.asarray(xdet),
-            'ydet': np.asarray(ydet),
-            'xdet_err': np.asarray(xdet_err),
-            'ydet_err': np.asarray(ydet_err),
-            'xuplim': np.asarray([]),
-            'yuplim': np.asarray([]),
-            'xuplim_err': np.asarray([]),
-            'yuplim_err': np.asarray([])
-            }
-
-    elif uplims_as_det: 
-
-        # Create the data dictionary
-        kwargs = {
-            'xdet': np.append(xdet, xuplim),
-            'ydet': np.append(ydet, yuplim),
-            'xdet_err': np.append(xdet_err, xuplim_err),
-            'ydet_err': np.append(ydet_err, yuplim_err),
-            'xuplim': np.asarray([]),
-            'yuplim': np.asarray([]),
-            'xuplim_err': np.asarray([]),
-            'yuplim_err': np.asarray([])
-            }
-
-
-
-    else:
-        # Create the data dictionary
-        kwargs = {
-            'xdet': np.asarray(xdet),
-            'ydet': np.asarray(ydet),
-            'xdet_err': np.asarray(xdet_err),
-            'ydet_err': np.asarray(ydet_err),
-            'xuplim': np.asarray(xuplim),
-            'yuplim': np.asarray(yuplim),
-            'xuplim_err': np.asarray(xuplim_err),
-            'yuplim_err': np.asarray(yuplim_err)
-            }
+    # Create the data dictionary
+    kwargs = {
+        'xdet': np.asarray(xdet),
+        'ydet': np.asarray(ydet),
+        'xdet_err': np.asarray(xdet_err),
+        'ydet_err': np.asarray(ydet_err),
+        'xuplim': np.asarray(xuplim),
+        'yuplim': np.asarray(yuplim),
+        'xuplim_err': np.asarray(xuplim_err),
+        'yuplim_err': np.asarray(yuplim_err)
+        }
 
 
     all_x = np.append(xdet, xuplim)
@@ -166,6 +139,10 @@ def run_linear_regression_with_uplims(i, nx=100, nuplims=20, plot=False, previou
         param_means.append(mean)
         param_stds.append(std)
         normalised_results.append((mean-v)/std)
+    # Same as:
+    #param_means = np.mean(samples_arr, axis=0)
+    #param_stds  = np.std(samples_arr, axis=0)
+    #param_medians = np.median(samples_arr, axis=0)
 
 
     slope_true, offset_true, mu_true, w_true, sig_true = true_vals 
@@ -235,52 +212,25 @@ def run_linear_regression_with_uplims(i, nx=100, nuplims=20, plot=False, previou
 
 ## SAME FUNCTIONALITY AS ABOVE, BUT MARGANILISED OVER XT
 
-def run_linear_regression_marginalised_xt(i, nx=100, nuplims=20, plot=False, previous_data_gen = False, ignore_uplims=False, uplims_as_det=False):
+def run_linear_regression_marginalised_xt(i, nx=None, nuplims=20, plot=False, previous_data_gen = False, no_uplims=False):
     
-    if previous_data_gen: xdet, ydet, xdet_err, ydet_err, xuplim, yuplim, xuplim_err, yuplim_err, true_vals = gen_synthetic_data_old(nx, nuplims, seed=i, plot=False)
-    else: xdet, ydet, xdet_err, ydet_err, xuplim, yuplim, xuplim_err, yuplim_err, true_vals = gen_synthetic_data(seed=i, nx=nx, plot=False)
+    if previous_data_gen: 
+        if nx is None: nx=100
+        xdet, ydet, xdet_err, ydet_err, xuplim, yuplim, xuplim_err, yuplim_err, true_vals = gen_synthetic_data_old(nx, nuplims, seed=i, plot=False)
+    else: xdet, ydet, xdet_err, ydet_err, xuplim, yuplim, xuplim_err, yuplim_err, true_vals = gen_synthetic_data(seed=i, nx=nx, plot=False, no_uplims=no_uplims)
 
 
-    if ignore_uplims:
-        # Create the data dictionary
-        kwargs = {
-            'xdet': np.asarray(xdet),
-            'ydet': np.asarray(ydet),
-            'xdet_err': np.asarray(xdet_err),
-            'ydet_err': np.asarray(ydet_err),
-            'xuplim': np.asarray([]),
-            'yuplim': np.asarray([]),
-            'xuplim_err': np.asarray([]),
-            'yuplim_err': np.asarray([])
-            }
-
-    elif uplims_as_det: 
-
-        # Create the data dictionary
-        kwargs = {
-            'xdet': np.append(xdet, xuplim),
-            'ydet': np.append(ydet, yuplim),
-            'xdet_err': np.append(xdet_err, xuplim_err),
-            'ydet_err': np.append(ydet_err, yuplim_err),
-            'xuplim': np.asarray([]),
-            'yuplim': np.asarray([]),
-            'xuplim_err': np.asarray([]),
-            'yuplim_err': np.asarray([])
-            }
-
-
-    else:
-        # Create the data dictionary
-        kwargs = {
-            'xdet': np.asarray(xdet),
-            'ydet': np.asarray(ydet),
-            'xdet_err': np.asarray(xdet_err),
-            'ydet_err': np.asarray(ydet_err),
-            'xuplim': np.asarray(xuplim),
-            'yuplim': np.asarray(yuplim),
-            'xuplim_err': np.asarray(xuplim_err),
-            'yuplim_err': np.asarray(yuplim_err)
-            }
+    # Create the data dictionary
+    kwargs = {
+        'xdet': np.asarray(xdet),
+        'ydet': np.asarray(ydet),
+        'xdet_err': np.asarray(xdet_err),
+        'ydet_err': np.asarray(ydet_err),
+        'xuplim': np.asarray(xuplim),
+        'yuplim': np.asarray(yuplim),
+        'xuplim_err': np.asarray(xuplim_err),
+        'yuplim_err': np.asarray(yuplim_err)
+        }
 
 
     all_x = np.append(xdet, xuplim)
@@ -399,14 +349,25 @@ def run_linear_regression_marginalised_xt(i, nx=100, nuplims=20, plot=False, pre
         plt.figure(figsize=(10, 6))
         plt.errorbar(xdet, ydet, yerr=ydet_err, xerr=xdet_err, fmt=".")
         plt.errorbar(xuplim, yuplim, yerr=yuplim_err, xerr=xuplim_err, fmt="v")
-        for j in range(1000):
+        yplot_all = []
+        for j in range(len(samples['A'])):
             A_sample = samples['A'][j]
             B_sample = samples['B'][j]
             y_plot = A_sample * x_plot + B_sample
-            plt.plot(x_plot, y_plot, 'r-', alpha=0.1) 
+            yplot_all.append(y_plot)
+            if j<1000: plt.plot(x_plot, y_plot, 'r-', alpha=0.1) 
         # Plot best-fit
         y_plot = A_mean * x_plot + B_mean
         plt.plot(x_plot, y_plot, 'g-', label=f'Fitted: y = {A_median:.4f}x + {B_median:.4f}\nScatter: {scatter_median:.4f}')  
+        # Plot 1-sigma band
+        #y_mean = np.mean(yplot_all, axis=0)          # shape (100,)
+        #y_std  = np.std(yplot_all, axis=0)           # shape (100,)
+        #lower = y_mean - y_std
+        #upper = y_mean + y_std
+        #plt.fill_between(x_plot, lower, upper, alpha=0.8, color="green", label='1σ band (no scatter)')
+        # Plot true fit
+        y_plot = slope_true * x_plot + offset_true
+        plt.plot(x_plot, y_plot, 'b-', label=f'True: y = {slope_true:.4f}x + {offset_true:.4f}\nScatter: {sig_true:.4f}') 
         plt.legend()
         plt.show()
 
@@ -426,17 +387,25 @@ def run_linear_regression_marginalised_xt(i, nx=100, nuplims=20, plot=False, pre
 ## RUNNER FUNCTION
 
 
-def runner_with_uplims(nrepeats, nx=100, nuplims=20, parallel=False, start_i=0,  plot=False, previous_data_gen = False, marg=True, ignore_uplims=False, uplims_as_det = False):
+def runner_with_uplims(nrepeats, nx=100, nuplims=20, parallel=False, start_i=0,  plot=False, previous_data_gen = False, type_test="marg", no_uplims=False):
      
     plot = ((nrepeats ==1) & (parallel==False))
     print("Show results of each iteration:", plot)
 
-    if marg: func = run_linear_regression_marginalised_xt
-    else: func = run_linear_regression_with_uplims
+    if type_test == "marg": 
+        func = run_linear_regression_marginalised_xt
+        params_ = params
+    elif type_test == "no_marg": 
+        func = run_linear_regression_with_uplims
+        params_ = params
+    elif type_test == "linmix": 
+        func = linmix_comparison
+        params_ = params_linmix
+    else: raise ValueError("type_test must be 'marg', 'no_marg' or 'linmix'")
 
     if parallel:
         parallel_results = Parallel(n_jobs=-1)(
-            delayed(func)(start_i + i, nx, nuplims, previous_data_gen=previous_data_gen, plot=False,  ignore_uplims=ignore_uplims,  uplims_as_det = uplims_as_det )
+            delayed(func)(start_i + i, nx, nuplims, previous_data_gen=previous_data_gen, plot=False,  no_uplims=no_uplims )
             for i in tqdm(range(nrepeats))
         )
 
@@ -448,16 +417,24 @@ def runner_with_uplims(nrepeats, nx=100, nuplims=20, parallel=False, start_i=0, 
         for i in range(nrepeats):
             print(f"RUN #{i}")
 
-            normalised_results, samples_arr = func(start_i + i, nx, nuplims, previous_data_gen=previous_data_gen, plot=plot,  ignore_uplims=ignore_uplims,  uplims_as_det = uplims_as_det )
+            normalised_results, samples_arr = func(start_i + i, nx, nuplims, previous_data_gen=previous_data_gen, plot=plot,  no_uplims=no_uplims )
 
             all_normalised_results.append(normalised_results)
             all_samples_arr.append(samples_arr)
 
 
 
-    if previous_data_gen: _, _, _, _, _, _, _, _, true_vals = gen_synthetic_data_old(nx, nuplims, seed=i, plot=False)
-    else: _, _, _, _, _, _, _, _, true_vals = gen_synthetic_data(seed=0, plot=False)
+    if previous_data_gen: _, _, _, _, _, _, _, _, true_vals = gen_synthetic_data_old(nx, nuplims, seed=0, plot=False)
+    else: _, _, _, _, _, _, _, _, true_vals = gen_synthetic_data(seed=0, nx=nx, plot=False)
+    
     slope_true, offset_true, mu_true, w_true, sig_true = true_vals 
+
+
+    if type_test == "linmix":
+        truths = [slope_true, offset_true, sig_true]
+        true_vals = [slope_true, offset_true, sig_true]
+    else:
+        truths = [slope_true, offset_true, mu_true, w_true, sig_true]
 
 
     # Check plots
@@ -470,7 +447,7 @@ def runner_with_uplims(nrepeats, nx=100, nuplims=20, parallel=False, start_i=0, 
 
     # Standardised results plot
     all_normalised_results = np.array(all_normalised_results) # shape: (n_runs, n_params)
-    n_params = len(params)
+    n_params = len(params_)
     fig, axes = plt.subplots(1, n_params, figsize=(4 * n_params, 4))
     for i, param in enumerate(params):
         spreads = all_normalised_results[:, i] # all values across runs for the i-th parameter
@@ -486,7 +463,7 @@ def runner_with_uplims(nrepeats, nx=100, nuplims=20, parallel=False, start_i=0, 
     # Corner plot
     # all_samples_arr has shape (n_runs, n_samples, n_params)
     samples_for_corner = np.vstack(all_samples_arr)  # stacks along the first axis, so resultant shape: (n_runs * n_samples, n_params)
-    fig = corner.corner(samples_for_corner, labels=params, truths=[slope_true, offset_true, mu_true, w_true, sig_true])
+    fig = corner.corner(samples_for_corner, labels=params_, truths=truths)
     plt.show()
 
 
@@ -497,16 +474,18 @@ def runner_with_uplims(nrepeats, nx=100, nuplims=20, parallel=False, start_i=0, 
 ###############################################################################################################################
 
 
-def linmix_comparison(i, nx=100, nuplims=20, plot=False, previous_data_gen = False):
+def linmix_comparison(i, nx=100, nuplims=20, plot=False, previous_data_gen = False, no_uplims=False):
     """
     Compare the results of the linmix package with the results of this method.
     """
     
-    if previous_data_gen: xobs, xerr, yobs, yerr, delta, true_vals = gen_synthetic_data_old(nx, nuplims, seed=i, return_alt=True)
-    else: xobs, xerr, yobs, yerr, delta, true_vals = gen_synthetic_data(seed=i, nx=nx, return_alt=True)
+    if previous_data_gen: 
+        if nx is None: nx=100
+        xobs, xerr, yobs, yerr, delta, true_vals = gen_synthetic_data_old(nx, nuplims, seed=i, return_alt=True)
+    else: xobs, xerr, yobs, yerr, delta, true_vals = gen_synthetic_data(seed=i, nx=nx, return_alt=True, no_uplims=no_uplims)
 
 
-    np.random.seed(i)
+    np.random.seed(42)
     lm = linmix.LinMix(x=xobs, y=yobs, xsig=xerr, ysig=yerr, delta=delta, K=2, parallelize=False, seed=i)
     lm.run_mcmc(miniter=5000,maxiter=10000,silent=False)
 
@@ -522,6 +501,32 @@ def linmix_comparison(i, nx=100, nuplims=20, plot=False, previous_data_gen = Fal
         alphas.append(lm.chain[i]['alpha']) # alpha = y-intercept = c, i.e. log(Xi)
         betas.append(lm.chain[i]['beta']) # m, i.e. slope beta
         sigmas.append(np.sqrt(lm.chain[i]['sigsqr'])) # "spread" of data around best-fit
+
+
+
+    samples_subset = {}
+    samples_subset['beta'] = np.asarray(betas)
+    samples_subset['alpha'] = np.asarray(alphas)
+    samples_subset['sig'] = np.asarray(sigmas)
+    samples_arr, names = dict_samples_to_array(samples_subset)
+
+    slope_true, offset_true, mu_true, w_true, sig_true = true_vals 
+
+    # Get the required results
+    param_means = []
+    param_stds = []
+    normalised_results = []
+    param_medians =[]
+    for i, (p, v) in enumerate(zip([ "beta","alpha", "sig"], [slope_true, offset_true, sig_true])):
+        vals = samples_arr[:, i]
+        mean = np.mean(vals)
+        std = np.std(vals)
+        median = np.median(vals)
+        param_medians.append(median)
+        param_means.append(mean)
+        param_stds.append(std)
+        normalised_results.append((mean-v)/std)
+
 
 
     mean_intercept = np.mean(alphas)
@@ -593,6 +598,8 @@ def linmix_comparison(i, nx=100, nuplims=20, plot=False, previous_data_gen = Fal
         plt.plot(x_plot, y_plot, 'g-', label=f'Fitted: y = {median_slope:.4f}x + {median_intercept:.4f} \nScatter: {median_sigma:.4f}')
         plt.legend()
         plt.show()
+
+    return normalised_results, samples_arr
 
 
 

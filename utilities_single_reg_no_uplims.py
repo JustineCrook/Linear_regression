@@ -15,9 +15,9 @@ import numpyro.distributions as dist
 import corner
 from joblib import Parallel, delayed
 from tqdm import tqdm
+from joblib import Parallel, delayed
 
-
-from utilities_single_reg import gen_synthetic_data, gen_synthetic_data_old, dict_samples_to_array
+from utilities_single_reg import *
 
 params = ['A', 'B', 'mu_gauss', 'w_gauss', 'sig']
 
@@ -99,9 +99,6 @@ def run_linear_regression_without_uplims(x, y, xerr, yerr, true_vals=None, show_
   
 
 
-    
-
-
     if show_plots:
 
         # Plot corner plot
@@ -150,7 +147,7 @@ def run_linear_regression_without_uplims(x, y, xerr, yerr, true_vals=None, show_
         plt.show()
 
 
-    return results
+    return results, samples_arr
 
 
 
@@ -174,65 +171,107 @@ def single_test_runner_without_uplims( own_data = None):
 
 
 
+
+
+
+def regression_without_uplims_helper(i, nx=100, nuplims=0, start_seed=0, previous_data_gen = False, all_data=True):
+
+    # Generate the synthetic data, using the seed
+    if previous_data_gen:
+        xdet, ydet, xdet_err, ydet_err, xuplim, yuplim, xuplim_err, yuplim_err, true_vals = gen_synthetic_data_old(nx, nuplims, seed=start_seed+ i, plot=False)
+    else:
+        xdet, ydet, xdet_err, ydet_err, xuplim, yuplim, xuplim_err, yuplim_err, true_vals = gen_synthetic_data(seed=start_seed+ i, nx=nx, plot=False)
+    slope_true, offset_true, mu_true, w_true, sig_true = true_vals 
+
+
+    if all_data: # treat the upper limits as detections
+        x = np.concatenate([xdet, xuplim])
+        y = np.concatenate([ydet, yuplim])
+        xerr = np.concatenate([xdet_err, xuplim_err])
+        yerr = np.concatenate([ydet_err, yuplim_err])
+    else: # ignore the upper limits
+        x = xdet
+        y = ydet
+        xerr = xdet_err
+        yerr = ydet_err
+
+
+    results, samples_arr = run_linear_regression_without_uplims(x, y, xerr, yerr, true_vals, show_plots=False)
+
+    return results, samples_arr
+
+
+
+
+
 #############
 
 
 # If all_data = True, use both detections and upper limits as detections
 # If all_data = False, use only detections
-def runner_without_uplims(nrepeats, nx=100, nuplims=0, start_seed=0, previous_data_gen = False, all_data=True):    
-
-    all_results = []  # shape: (n_runs, n_params)
-
-    for i in range(nrepeats):
-
-        print(f"RUN #{i}")
-
-        # Generate the synthetic data, using the seed
-        if previous_data_gen:
-            xdet, ydet, xdet_err, ydet_err, xuplim, yuplim, xuplim_err, yuplim_err, true_vals = gen_synthetic_data_old(nx, nuplims, seed=start_seed+ i)
-        else:
-            xdet, ydet, xdet_err, ydet_err, xuplim, yuplim, xuplim_err, yuplim_err, true_vals = gen_synthetic_data(seed=start_seed+ i, nx=nx)
-        slope_true, offset_true, mu_true, w_true, sig_true = true_vals 
+def runner_without_uplims(nrepeats, nx=100, nuplims=0, start_seed=0, previous_data_gen = False, all_data=True, parallel=False):    
 
 
-        if all_data:
-            x = np.concatenate([xdet, xuplim])
-            y = np.concatenate([ydet, yuplim])
-            xerr = np.concatenate([xdet_err, xuplim_err])
-            yerr = np.concatenate([ydet_err, yuplim_err])
-        else:
-            x = xdet
-            y = ydet
-            xerr = xdet_err
-            yerr = ydet_err
+    plot = ((nrepeats ==1) & (parallel==False))
+    print("Show results of each iteration:", plot)
+
+    func = regression_without_uplims_helper
 
 
+    if parallel:
+        parallel_results = Parallel(n_jobs=-1)(
+            delayed(func)(start_seed + i, nx, nuplims, previous_data_gen=previous_data_gen, all_data=all_data)
+            for i in tqdm(range(nrepeats))
+        )
 
-        # Run the linear regression    
-        if nrepeats>1: show = False
-        else: show = True
-        results = run_linear_regression_without_uplims(x, y, xerr, yerr, true_vals, show_plots=show)
-        all_results.append(results)
+        all_normalised_results, all_samples_arr = zip(*parallel_results)
+
+    else:
+        all_normalised_results = []
+        all_samples_arr = []
+        for i in range(nrepeats):
+            print(f"RUN #{i}")
+
+            normalised_results, samples_arr = func(start_seed + i, nx, nuplims, previous_data_gen=previous_data_gen , all_data=all_data)
+
+            all_normalised_results.append(normalised_results)
+            all_samples_arr.append(samples_arr)
+
+    
+
+    if previous_data_gen: _, _, _, _, _, _, _, _, true_vals = gen_synthetic_data_old(nx, nuplims, seed=0, plot=False)
+    else: _, _, _, _, _, _, _, _, true_vals = gen_synthetic_data(seed=0, plot=False, all_data=all_data)
+    slope_true, offset_true, mu_true, w_true, sig_true = true_vals 
 
 
-    if nrepeats>1: # Plot all results
+    # Check plots
+    all_samples_arr = np.asarray(all_samples_arr)
+    n_runs, n_samples, n_params = all_samples_arr.shape
+    print("n_runs:", n_runs, "n_samples:", n_samples, "n_params:", n_params)
+    truth = np.array([list(true_vals)]*n_runs)
+    plot_posterior_diagnostics(all_samples_arr, truth)
 
-        all_results = np.array(all_results)
-        
-        n_params = len(params)
-        fig, axes = plt.subplots(1, n_params, figsize=(4 * n_params, 4))
 
-        for i, param in enumerate(params):
-            spreads = all_results[:, i]
-            print(spreads)
-            sns.histplot(spreads, kde=True, ax=axes[i])
-            axes[i].axvline(0, color='red', linestyle='--')
-            axes[i].set_title(f"Distribution of results for {param}")
-            axes[i].set_xlabel("(Mean - true)/std")
-            axes[i].set_ylabel("Count")
+    # Standardised results plot
+    all_normalised_results = np.array(all_normalised_results) # shape: (n_runs, n_params)
+    n_params = len(params)
+    fig, axes = plt.subplots(1, n_params, figsize=(4 * n_params, 4))
+    for i, param in enumerate(params):
+        spreads = all_normalised_results[:, i] # all values across runs for the i-th parameter
+        sns.histplot(spreads, kde=True, ax=axes[i])
+        axes[i].axvline(0, color='red', linestyle='--')
+        axes[i].set_title(f"Distribution of results for {param}")
+        axes[i].set_xlabel("(Mean - true)/std")
+        axes[i].set_ylabel("Count")
+    plt.tight_layout()
+    plt.show()
 
-        plt.tight_layout()
-        plt.show()
+
+    # Corner plot
+    # all_samples_arr has shape (n_runs, n_samples, n_params)
+    samples_for_corner = np.vstack(all_samples_arr)  # stacks along the first axis, so resultant shape: (n_runs * n_samples, n_params)
+    fig = corner.corner(samples_for_corner, labels=params, truths=[slope_true, offset_true, mu_true, w_true, sig_true])
+    plt.show()
 
 
 

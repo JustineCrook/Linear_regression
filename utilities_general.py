@@ -194,7 +194,7 @@ def gen_synthetic_data_old(nx=100, nuplims=20, seed=0, plot=True, return_alt=Fal
 ################
 
 
-def gen_synthetic_data(seed=0, return_alt=False, nx=None, plot=True):
+def gen_synthetic_data(seed=0, return_alt=False, nx=None, plot=True, no_uplims=False):
 
     # Set the seed for generating xtrue, xobs, ytrue, yobs values
     # Note that I also use the seed for generating xtrue and ytrue because we have a small number of data points, 
@@ -242,9 +242,10 @@ def gen_synthetic_data(seed=0, return_alt=False, nx=None, plot=True):
 
     # Generate xtrue values 
     xtrue = np.log10(Lx/Lx0)
+    print("Number of data points: ", len(xtrue))
     mu_true = np.mean(xtrue)
     w_true = np.std(xtrue, ddof=1)
-    xerr = np.random.uniform(0.1/np.log(10), 0.5/np.log(10), size=xtrue.shape)  
+    xerr = np.random.uniform(0.1/np.log(10), 0.5/np.log(10), size=xtrue.shape)  # errors in log space are 1/log(10) * dx_lin/x_lin, so this corresponds to ~10-50% errors in linear space
     # Draw xtrue from a Gaussian with mean mu_true and standard deviation w_true
     xtrue = np.random.normal(mu_true, w_true, size=len(xtrue)) 
     xobs = xtrue + np.random.normal(size=len(xtrue)) * xerr
@@ -253,19 +254,28 @@ def gen_synthetic_data(seed=0, return_alt=False, nx=None, plot=True):
     # Log space, i.e. for the linear fit
     ymean = norm_lin + beta * xtrue 
     ytrue = ymean + np.random.normal(size=len(ymean))* sigma_eps_log
-    yerr = np.random.uniform(0.05/np.log(10), 0.4/np.log(10), size=xtrue.shape)  
+    yerr = np.random.uniform(0.05/np.log(10), 0.4/np.log(10), size=xtrue.shape)   # errors in log space are 1/log(10) * dx_lin/x_lin, so this corresponds to ~5-40% errors in linear space
     yobs = ytrue + np.random.normal(size=len(xtrue)) * yerr
 
     yobs_orig = np.copy(yobs)
 
-    # Upper limits
-    # Do this in linear space -- just easier / more intuitive in terms of understanding the <3sigma rule
-    ytrue_lin = 10**ytrue
-    yobs_lin = 10**yobs
-    yerr_lin = ytrue_lin * np.log(10)* yerr  # convert to linear space, just using small error approximation
-    uplims_obs = (yobs_lin< (3*yerr_lin))
-    yobs[uplims_obs] = np.log10(3*yerr_lin[uplims_obs]) # set the observed value to the 3*yerr in log space 
-
+    if no_uplims==False:
+        # Upper limits
+        # Do this in linear space -- just easier / more intuitive in terms of understanding the <3sigma rule
+        ytrue_lin = 10**ytrue
+        yobs_lin = 10**yobs
+        yerr_lin = ytrue_lin * np.log(10)* yerr  # convert to linear space, just using small-ish error approximation... should be between 5-40%
+        if plot:
+            # Check 
+            test = yerr_lin / ytrue_lin  *100   # should be between 5-40%
+            plt.hist(test, bins=10)
+            plt.xlabel("y-value % errors in linear space")
+            plt.show()
+        # Apply 3 sigma rule for upper limits
+        uplims_obs = (yobs_lin< (3*yerr_lin)) # mask
+        yobs[uplims_obs] = np.log10(3*yerr_lin[uplims_obs]) # set the observed value to the 3*yerr in log space 
+    else: 
+        uplims_obs = np.zeros(len(yobs), dtype=bool)
 
     if nx is not None:
         indx = rng.choice(len(xobs), size=nx, replace=False)
@@ -279,6 +289,8 @@ def gen_synthetic_data(seed=0, return_alt=False, nx=None, plot=True):
         yobs_orig = yobs_orig[indx]
         
 
+    print("Number of data points: ", len(xtrue))
+
     if plot:
         print("Number of uplims: ", sum(uplims_obs))
 
@@ -287,12 +299,32 @@ def gen_synthetic_data(seed=0, return_alt=False, nx=None, plot=True):
         plt.errorbar(xobs, yobs_orig, uplims = uplims_obs, fmt='o', label='Observed Data', color='green', ms=3)
         x_plot_lin = np.log10(x_plot)
         y_fit = np.log10(alpha) + beta * x_plot_lin
-        plt.plot( x_plot_lin  , y_fit, color='red' )
+        plt.plot( x_plot_lin  , y_fit, color='red' , label='True line')
+        plt.xlabel(r'$\log(L_X / L_{X0})$', fontsize=14)
+        plt.ylabel(r'$\log(L_R / L_{R0})$', fontsize=14)
         plt.legend()
         plt.show()
 
 
+        plt.errorbar(xobs[~uplims_obs], yobs[~uplims_obs], xerr=xerr[~uplims_obs], yerr=yerr[~uplims_obs], fmt='o', label='Observed Data', color='blue')
+        plt.errorbar(xobs[uplims_obs], yobs[uplims_obs], xerr=xerr[uplims_obs], yerr=yerr[uplims_obs], uplims= np.ones(sum(uplims_obs), dtype= bool), fmt='o', label='Upper Limits', color='orange')
+        plt.errorbar(xobs, yobs_orig, uplims = uplims_obs, fmt='o', label='True Observed Data', color='green', ms=2)
+        x_plot_lin = np.log10(x_plot)
+        y_fit = np.log10(alpha) + beta * x_plot_lin
+        plt.plot( x_plot_lin  , y_fit, color='red' , label='True line')
+        plt.xlabel(r'$\log(L_X / L_{X0})$', fontsize=14)
+        plt.ylabel(r'$\log(L_R / L_{R0})$', fontsize=14)
+        plt.legend()
+        plt.show()
+
+        plt.hist(ytrue[~uplims_obs], alpha=0.5, label='ytrue detections', color='blue', density=True)
+        plt.hist(ytrue[uplims_obs], alpha=0.5, label='ytrue uplims', color='orange', density=True)
+        plt.xlabel("ytrue values")
+        plt.legend()    
+        plt.show()
+
         plt.hist(xtrue)
+        plt.xlabel("xtrue values")
         plt.show()
 
 
