@@ -15,8 +15,3 @@
 
 * DATA:
 - Contains the LrLx data used to generate the mock data. 
-
-
-
-
-- The most important notebook is 2_3_marg_comparison.ipynb -- this shows the results of the upper limit linear regression when xt is marginalised over. 
