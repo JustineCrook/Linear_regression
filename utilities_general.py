@@ -193,6 +193,19 @@ def gen_synthetic_data_old(nx=100, nuplims=20, seed=0, plot=True, return_alt=Fal
 
 ################
 
+## Convert radio flux density in units of mJy to radio luminosity in units of erg/s
+## Also returns error -- assuming nu has no uncertainty
+def convert_Fr(Fr_mJy, Fr_mJy_unc, d_kpc, d_kpc_unc, nu_GHz=1.28):
+    S = Fr_mJy * 1e-3 * 1e-23         # convert mJy to Jy, then Jy to erg s^-1 cm^-2 Hz^-1
+    d = d_kpc * 1e3 * 3.086e18       # convert kpc to cm
+    nu = nu_GHz * 1e9                # convert GHz to Hz
+
+    # Calculate luminosity
+    L = 4 * np.pi * d**2 * S * nu    # in erg/s
+    L_unc = L*np.sqrt( (Fr_mJy_unc/Fr_mJy)**2 + (2* d_kpc_unc/d_kpc)**2)
+
+    return L, L_unc
+
 
 def gen_synthetic_data(seed=0, return_alt=False, nx=None, plot=True, no_uplims=False):
 
@@ -230,10 +243,20 @@ def gen_synthetic_data(seed=0, return_alt=False, nx=None, plot=True, no_uplims=F
     Lr_unc_u = np.copy(Lr_unc_l)
     Lr_unc_u[Lr_uplims] = 0
     Lx_uplims = filtered_df['Lx_uplim_bool'].astype(bool)
+    D_kpc =  filtered_df['D'].to_numpy()
 
 
     x_plot = np.logspace(np.log10(min(Lx/Lx0)), np.log10(max(Lx/Lx0)), 1000)
     x_plot_lin = np.log10(x_plot)
+
+
+    ## Make a threshold -- 3*rms where rms ~20uJy
+    # For D = 10 kpc, the 1.28 GHz luminosity is:
+    rms = 20e-6 # Jy
+    rms_erg_s, _ = convert_Fr(rms*1e3, 0, D_kpc, 0, nu_GHz=1.28) # erg/s
+    threshold_Lr = 3 * np.array(rms_erg_s)
+    #print("Threshold Lr: ", threshold_Lr)
+
 
 
     ## MAKE SAMPLE DATA 
@@ -272,8 +295,10 @@ def gen_synthetic_data(seed=0, return_alt=False, nx=None, plot=True, no_uplims=F
             plt.xlabel("y-value % errors in linear space")
             plt.show()
         # Apply 3 sigma rule for upper limits
-        uplims_obs = (yobs_lin< (3*yerr_lin)) # mask
-        yobs[uplims_obs] = np.log10(3*yerr_lin[uplims_obs]) # set the observed value to the 3*yerr in log space 
+        #uplims_obs = (yobs_lin< (3*yerr_lin)) # mask
+        #yobs[uplims_obs] = np.log10(3*yerr_lin[uplims_obs]) # set the observed value to the 3*yerr in log space 
+        uplims_obs = (yobs_lin< threshold_Lr/Lr0) # mask
+        yobs[uplims_obs] = np.log10(threshold_Lr[uplims_obs]/Lr0) # set the observed value to the threshold in log space
     else: 
         uplims_obs = np.zeros(len(yobs), dtype=bool)
 
